@@ -1,10 +1,17 @@
-import sqlite3
+import os
+import psycopg2
+from dotenv import load_dotenv
 
-DB_NAME = "game.db"
-
+load_dotenv()
 
 def get_connection():
-    return sqlite3.connect(DB_NAME, check_same_thread=False)
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST"),
+        database=os.getenv("DB_NAME"),
+        user=os.getenv("DB_USER"),
+        password=os.getenv("DB_PASSWORD"),
+        port=os.getenv("DB_PORT")
+    )
 
 
 # -------------------
@@ -26,12 +33,12 @@ def create_tables():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS players(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         room_code TEXT,
         player_name TEXT,
         role TEXT,
         score INTEGER,
-        ready INTEGER
+        ready BOOLEAN DEFAULT FALSE
     )
     """)
 
@@ -43,6 +50,8 @@ def create_tables():
     """)
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -58,26 +67,21 @@ def create_room(room_code):
 
     cursor.execute(
         """
-        INSERT INTO rooms VALUES (?, ?, ?)
+        INSERT INTO rooms VALUES (%s, %s, %s)
         """,
-        (
-            room_code,
-            "show_roles",
-            1
-        )
+        (room_code,"show_roles",1)
     )
 
     cursor.execute(
         """
-        INSERT INTO game_state VALUES (?,?)
+        INSERT INTO game_state VALUES (%s,%s)
         """,
-        (
-            room_code,
-            ""
-        )
+        (room_code,"")
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -91,13 +95,14 @@ def room_exists(room_code):
         """
         SELECT room_code
         FROM rooms
-        WHERE room_code=?
+        WHERE room_code=%s
         """,
         (room_code,)
     )
 
     result = cursor.fetchone()
 
+    cursor.close()
     conn.close()
 
     return result is not None
@@ -113,13 +118,14 @@ def get_phase(room_code):
         """
         SELECT phase
         FROM rooms
-        WHERE room_code=?
+        WHERE room_code=%s
         """,
         (room_code,)
     )
 
     phase = cursor.fetchone()[0]
 
+    cursor.close()
     conn.close()
 
     return phase
@@ -134,13 +140,15 @@ def update_phase(room_code,phase):
     cursor.execute(
         """
         UPDATE rooms
-        SET phase=?
-        WHERE room_code=?
+        SET phase=%s
+        WHERE room_code=%s
         """,
         (phase,room_code)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -158,18 +166,15 @@ def add_player(room_code,name):
     cursor.execute(
         """
         INSERT INTO players
-        VALUES(NULL,?,?,?,?,?)
+        (room_code, player_name, role, score, ready)
+        VALUES (%s, %s, %s, %s, %s)
         """,
-        (
-            room_code,
-            name,
-            "",
-            0,
-            0
-        )
+        (room_code, name, "", 0, False)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -183,13 +188,14 @@ def get_players(room_code):
         """
         SELECT *
         FROM players
-        WHERE room_code=?
+        WHERE room_code=%s
         """,
         (room_code,)
     )
 
     data=cursor.fetchall()
 
+    cursor.close()
     conn.close()
 
     return data
@@ -238,14 +244,15 @@ def get_player_role(room_code,name):
         """
         SELECT role
         FROM players
-        WHERE room_code=?
-        AND player_name=?
+        WHERE room_code=%s
+        AND player_name=%s
         """,
         (room_code,name)
     )
 
     result=cursor.fetchone()
 
+    cursor.close()
     conn.close()
 
     return result[0]
@@ -261,14 +268,15 @@ def get_player_by_role(room_code,role):
         """
         SELECT player_name
         FROM players
-        WHERE room_code=?
-        AND role=?
+        WHERE room_code=%s
+        AND role=%s
         """,
         (room_code,role)
     )
 
     result=cursor.fetchone()
 
+    cursor.close()
     conn.close()
 
     return result[0]
@@ -283,14 +291,16 @@ def update_role(room_code,name,role):
     cursor.execute(
         """
         UPDATE players
-        SET role=?
-        WHERE room_code=?
-        AND player_name=?
+        SET role=%s
+        WHERE room_code=%s
+        AND player_name=%s
         """,
         (role,room_code,name)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -308,14 +318,16 @@ def set_player_ready(room_code,name):
     cursor.execute(
         """
         UPDATE players
-        SET ready=1
-        WHERE room_code=?
-        AND player_name=?
+        SET ready=TRUE
+        WHERE room_code=%s
+        AND player_name=%s
         """,
         (room_code,name)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -329,14 +341,15 @@ def all_players_ready(room_code):
         """
         SELECT COUNT(*)
         FROM players
-        WHERE room_code=?
-        AND ready=1
+        WHERE room_code=%s
+        AND ready=TRUE
         """,
         (room_code,)
     )
 
     ready=cursor.fetchone()[0]
 
+    cursor.close()
     conn.close()
 
     return ready==4
@@ -356,13 +369,15 @@ def save_guess(room_code,guess):
     cursor.execute(
         """
         UPDATE game_state
-        SET guess=?
-        WHERE room_code=?
+        SET guess=%s
+        WHERE room_code=%s
         """,
         (guess,room_code)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -376,13 +391,14 @@ def get_guess(room_code):
         """
         SELECT guess
         FROM game_state
-        WHERE room_code=?
+        WHERE room_code=%s
         """,
         (room_code,)
     )
 
     result=cursor.fetchone()
 
+    cursor.close()
     conn.close()
 
     return result[0]
@@ -402,14 +418,16 @@ def add_score(room_code,name,points):
     cursor.execute(
         """
         UPDATE players
-        SET score=score+?
-        WHERE room_code=?
-        AND player_name=?
+        SET score=score+%s
+        WHERE room_code=%s
+        AND player_name=%s
         """,
         (points,room_code,name)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -423,7 +441,7 @@ def get_scores(room_code):
         """
         SELECT player_name,score
         FROM players
-        WHERE room_code=?
+        WHERE room_code=%s
         ORDER BY score DESC
         """,
         (room_code,)
@@ -431,6 +449,7 @@ def get_scores(room_code):
 
     scores=cursor.fetchall()
 
+    cursor.close()
     conn.close()
 
     return scores
@@ -451,12 +470,14 @@ def next_round(room_code):
         """
         UPDATE rooms
         SET round=round+1
-        WHERE room_code=?
+        WHERE room_code=%s
         """,
         (room_code,)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
 
 
@@ -470,13 +491,14 @@ def get_round(room_code):
         """
         SELECT round
         FROM rooms
-        WHERE room_code=?
+        WHERE room_code=%s
         """,
         (room_code,)
     )
 
     result=cursor.fetchone()
 
+    cursor.close()
     conn.close()
 
     return result[0]
@@ -489,13 +511,17 @@ def reset_player_ready(room_code, name):
     cursor.execute(
         """
         UPDATE players
-        SET ready = 0
-        WHERE room_code = ?
-        AND player_name = ?
+        SET ready = FALSE
+        WHERE room_code = %s
+        AND player_name = %s
         """,
         (room_code, name)
     )
 
     conn.commit()
+    cursor.close()
+    cursor.close()
     conn.close()
+
+
 
